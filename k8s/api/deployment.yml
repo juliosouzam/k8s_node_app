@@ -12,6 +12,15 @@ spec:
       labels:
         app: api-app
     spec:
+      initContainers:
+        - name: init-pod
+          image: busybox:1.28
+          command:
+            [
+              "sh",
+              "-c",
+              "until nslookup mongo-service.default.svc.cluster.local; do echo 'waiting for mongodb'; sleep 2; done",
+            ]
       containers:
         - name: my-api
           image: juliocesar/app:main
