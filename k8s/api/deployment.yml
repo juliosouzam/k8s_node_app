@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: api-deployment
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: api-app
@@ -49,9 +50,12 @@ spec:
             - name: MONGO_DATABASE
               value: users
           resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
             limits:
-              memory: "128Mi"
-              cpu: "500m"
+              cpu: 400m
+              memory: 256Mi
           ports:
             - containerPort: 3000
               name: http
