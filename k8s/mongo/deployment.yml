@@ -14,6 +14,9 @@ spec:
       containers:
         - name: mongo-container
           image: mongo
+          volumeMounts:
+            - mountPath: /data/db
+              name: mongo-data
           resources:
             requests:
               cpu: 500m
@@ -23,3 +26,8 @@ spec:
               memory: 256Mi
           ports:
             - containerPort: 27017
+      volumes:
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: mongodb-pvc
+
