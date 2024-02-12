@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import { connect } from "mongoose";
 
 import { User } from "./domain/entities/User";
+import { sdk, tracer } from "./tracer";
 
 const { MONGO_HOST, MONGO_PORT = 27017, MONGO_DATABASE } = process.env;
 
@@ -12,23 +13,34 @@ const fastify = Fastify({
 });
 
 fastify.get("/healthcheck", (request, reply) => {
-	return reply.send({
-		uptime: process.uptime(),
-		hostname: os.hostname(),
-		arch: os.arch(),
-		homedir: os.homedir(),
-		machine: os.machine(),
-		platform: os.platform(),
-		release: os.release(),
-		tmpdir: os.tmpdir(),
-		userInfo: os.userInfo(),
-		cpus: os.cpus(),
-		cpfUsage: process.cpuUsage(),
+	const params = tracer.startActiveSpan("healthcheck", (span) => {
+		const params = {
+			uptime: process.uptime(),
+			hostname: os.hostname(),
+			arch: os.arch(),
+			homedir: os.homedir(),
+			machine: os.machine(),
+			platform: os.platform(),
+			release: os.release(),
+			tmpdir: os.tmpdir(),
+			userInfo: os.userInfo(),
+			cpus: os.cpus(),
+			cpfUsage: process.cpuUsage(),
+		};
+		span.end();
+		return params;
 	});
+
+	return reply.send(params);
 });
 
 fastify.get("/users", async (request, reply) => {
-	const users = await User.find();
+	const users = await tracer.startActiveSpan("users.index", async (span) => {
+		const users = await User.find();
+
+		span.end();
+		return users;
+	});
 
 	return reply.send(users);
 });
@@ -76,6 +88,15 @@ fastify.delete<{
 
 async function main() {
 	await connect(`mongodb://${MONGO_HOST}:${MONGO_PORT}/${MONGO_DATABASE}`);
+
+	process.on("SIGTERM", async () => {
+		await fastify.close();
+		sdk
+			.shutdown()
+			.then(() => console.log("Tracing terminated"))
+			.catch((error) => console.log("Error terminating tracing", error))
+			.finally(() => process.exit(0));
+	});
 
 	try {
 		const address = await fastify.listen({ port: 3000, host: "0.0.0.0" });
